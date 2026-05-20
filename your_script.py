@@ -1,49 +1,129 @@
 import json
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
-# 输入文件
+# =========================
+# 配置
+# =========================
 INPUT_FILE = "bilibili_activities_1779286294270.json"
 OUTPUT_FILE = "bilibili_activities_view.html"
 
+# 中国时区
+CN_TZ = timezone(timedelta(hours=8))
+
+
+# =========================
+# 工具函数
+# =========================
+def format_time(ts):
+    """格式化中国时间"""
+    dt = datetime.fromtimestamp(ts, tz=CN_TZ)
+    return dt.strftime("%Y-%m-%d %H:%M")
+
+
+def get_remaining_days(end_ts):
+    """距离结束还有多少天"""
+    now = datetime.now(CN_TZ).timestamp()
+    seconds = end_ts - now
+    return seconds / 86400
+
+
+def get_status_text(days):
+    """活动状态文本"""
+    if days < 0:
+        return "已结束"
+    elif days < 1:
+        return "今天截止"
+    elif days < 2:
+        return "明天截止"
+    elif days < 7:
+        return "即将截止"
+    else:
+        return "进行中"
+
+
+# =========================
 # 读取 JSON
+# =========================
 with open(INPUT_FILE, "r", encoding="utf-8") as f:
     data = json.load(f)
 
-# 时间格式化（中国时区 UTC+8）
-def format_time(ts):
-    dt = datetime.utcfromtimestamp(ts)  # 先按 UTC
-    dt = dt.replace(hour=(dt.hour + 8) % 24)  # 转中国时区
-    return dt.strftime("%Y-%m-%d %H:%M")
+# =========================
+# 预处理数据
+# =========================
+all_tags = set()
 
-# 生成卡片 HTML
+for item in data:
+    item["remaining_days"] = get_remaining_days(item.get("etime", 0))
+    item["status_text"] = get_status_text(item["remaining_days"])
+
+    for tag in item.get("hot_labels", []):
+        all_tags.add(tag)
+
+# 默认按截止时间排序（快结束的在前）
+data.sort(key=lambda x: x.get("etime", 0))
+
+# 标签 HTML
+tags_html = "".join(
+    f'<button class="filter-tag" onclick="toggleTag(this, \'{tag}\')">{tag}</button>'
+    for tag in sorted(all_tags)
+)
+
+# =========================
+# 卡片 HTML
+# =========================
 cards_html = []
 
 for item in data:
     start_time = format_time(item.get("stime", 0))
     end_time = format_time(item.get("etime", 0))
 
-    labels = "".join(
+    labels = item.get("hot_labels", [])
+
+    labels_html = "".join(
         f'<span class="tag">{label}</span>'
-        for label in item.get("hot_labels", [])
+        for label in labels
     )
 
+    remaining = item["remaining_days"]
+
+    if remaining < 0:
+        remain_text = "已结束"
+        remain_class = "expired"
+    elif remaining < 1:
+        remain_text = "今天截止"
+        remain_class = "danger"
+    elif remaining < 2:
+        remain_text = "明天截止"
+        remain_class = "warning"
+    else:
+        remain_text = f"剩余 {int(remaining)} 天"
+        remain_class = "normal"
+
     card = f"""
-    <div class="card">
+    <div class="card"
+         data-tags="{' '.join(labels)}"
+         data-status="{item['status_text']}"
+         data-remaining="{remaining}">
+         
         <div class="title">
             <a href="{item.get("act_url", "#")}" target="_blank">
                 {item.get("name", "未知活动")}
             </a>
         </div>
 
+        <div class="deadline {remain_class}">
+            {remain_text}
+        </div>
+
         <div class="meta">
             <div><b>ID:</b> {item.get("id")}</div>
-            <div><b>开始时间:</b> {start_time}</div>
-            <div><b>结束时间:</b> {end_time}</div>
+            <div><b>开始:</b> {start_time}</div>
+            <div><b>结束:</b> {end_time}</div>
         </div>
 
         <div class="tags">
-            {labels}
+            {labels_html}
         </div>
 
         <div class="url">
@@ -56,7 +136,9 @@ for item in data:
 
     cards_html.append(card)
 
-# 最终 HTML
+# =========================
+# HTML 页面
+# =========================
 html = f"""
 <!DOCTYPE html>
 <html lang="zh-CN">
@@ -65,6 +147,7 @@ html = f"""
 <title>Bilibili 活动列表</title>
 
 <style>
+
 body {{
     margin: 0;
     padding: 20px;
@@ -73,7 +156,38 @@ body {{
 }}
 
 h1 {{
+    margin-bottom: 10px;
+}}
+
+.topbar {{
+    background: white;
+    padding: 16px;
+    border-radius: 12px;
     margin-bottom: 20px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}}
+
+.filter-group {{
+    margin-bottom: 12px;
+}}
+
+.filter-tag {{
+    margin: 4px;
+    padding: 6px 12px;
+    border: none;
+    border-radius: 999px;
+    cursor: pointer;
+    background: #e8e8e8;
+}}
+
+.filter-tag.active {{
+    background: #00a1d6;
+    color: white;
+}}
+
+select {{
+    padding: 8px;
+    border-radius: 8px;
 }}
 
 .container {{
@@ -92,8 +206,7 @@ h1 {{
 .title {{
     font-size: 20px;
     font-weight: bold;
-    margin-bottom: 12px;
-    line-height: 1.4;
+    margin-bottom: 10px;
 }}
 
 .title a {{
@@ -103,6 +216,34 @@ h1 {{
 
 .title a:hover {{
     color: #00a1d6;
+}}
+
+.deadline {{
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 8px;
+    font-size: 13px;
+    margin-bottom: 12px;
+}}
+
+.deadline.normal {{
+    background: #e8f7e8;
+    color: #0a7d22;
+}}
+
+.deadline.warning {{
+    background: #fff3cd;
+    color: #a36b00;
+}}
+
+.deadline.danger {{
+    background: #ffe0e0;
+    color: #cc0000;
+}}
+
+.deadline.expired {{
+    background: #dddddd;
+    color: #666;
 }}
 
 .meta {{
@@ -136,25 +277,98 @@ h1 {{
     text-decoration: none;
 }}
 
-.url a:hover {{
-    text-decoration: underline;
+.hidden {{
+    display: none;
 }}
-</style>
 
+</style>
 </head>
+
 <body>
 
 <h1>Bilibili 活动列表</h1>
 
-<div class="container">
-{''.join(cards_html)}
+<div class="topbar">
+
+    <div class="filter-group">
+        <b>标签筛选：</b><br>
+        {tags_html}
+    </div>
+
+    <div class="filter-group">
+        <b>活动周期：</b>
+        <select id="statusFilter" onchange="applyFilters()">
+            <option value="all">全部</option>
+            <option value="进行中">进行中</option>
+            <option value="即将截止">即将截止（7天内）</option>
+            <option value="明天截止">明天截止</option>
+            <option value="今天截止">今天截止</option>
+            <option value="已结束">已结束</option>
+        </select>
+    </div>
+
 </div>
+
+<div class="container" id="container">
+    {''.join(cards_html)}
+</div>
+
+<script>
+
+let selectedTags = [];
+
+function toggleTag(btn, tag) {{
+
+    btn.classList.toggle("active");
+
+    if (selectedTags.includes(tag)) {{
+        selectedTags = selectedTags.filter(t => t !== tag);
+    }} else {{
+        selectedTags.push(tag);
+    }}
+
+    applyFilters();
+}}
+
+function applyFilters() {{
+
+    const cards = document.querySelectorAll(".card");
+    const statusFilter = document.getElementById("statusFilter").value;
+
+    cards.forEach(card => {{
+
+        const tags = card.dataset.tags;
+        const status = card.dataset.status;
+
+        let show = true;
+
+        // 标签筛选
+        if (selectedTags.length > 0) {{
+            show = selectedTags.some(tag => tags.includes(tag));
+        }}
+
+        // 状态筛选
+        if (show && statusFilter !== "all") {{
+            show = status === statusFilter;
+        }}
+
+        if (show) {{
+            card.classList.remove("hidden");
+        }} else {{
+            card.classList.add("hidden");
+        }}
+    }});
+}}
+
+</script>
 
 </body>
 </html>
 """
 
-# 写入 HTML
+# =========================
+# 输出 HTML
+# =========================
 Path(OUTPUT_FILE).write_text(html, encoding="utf-8")
 
-print(f"已生成: {OUTPUT_FILE}")
+print(f"已生成网页文件: {OUTPUT_FILE}")
