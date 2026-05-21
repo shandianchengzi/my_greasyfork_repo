@@ -84,8 +84,8 @@ def fetch_all_data() -> list:
 
 def main() -> None:
     result = fetch_all_data()
-    timestamp_ms = int(time.time() * 1000)
-    output = Path(f"bilibili_activities_{timestamp_ms}.json")
+    timestamp_millis = int(time.time() * 1000)
+    output = Path(f"bilibili_activities_{timestamp_millis}.json")
     output.write_text(
         json.dumps(result, ensure_ascii=False, indent=2),
         encoding="utf-8",
