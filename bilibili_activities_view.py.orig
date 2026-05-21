@@ -1,28 +1,11 @@
 import json
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
-import glob
-import re
 
 # =========================
 # 配置
 # =========================
-# 自动获取时间戳最大的 JSON 文件
-def get_latest_json_file():
-    json_files = glob.glob("bilibili_activities_*.json")
-    if not json_files:
-        raise FileNotFoundError("未找到匹配模式 'bilibili_activities_*.json' 的文件")
-    
-    def extract_timestamp(filename):
-        match = re.search(r'bilibili_activities_(\d+)\.json', filename)
-        if match:
-            return int(match.group(1))
-        return 0
-    
-    latest_file = max(json_files, key=extract_timestamp)
-    return latest_file
-
-INPUT_FILE = get_latest_json_file()
+INPUT_FILE = "bilibili_activities_1779286294270.json"
 OUTPUT_FILE = "bilibili_activities_view.html"
 
 # 中国时区
