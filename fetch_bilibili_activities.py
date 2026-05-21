@@ -2,6 +2,7 @@
 import json
 import time
 from pathlib import Path
+from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
@@ -28,8 +29,13 @@ def request_json(params: dict) -> dict:
             ),
         },
     )
-    with urlopen(req, timeout=30) as resp:
-        return json.loads(resp.read().decode("utf-8"))
+    try:
+        with urlopen(req, timeout=30) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+    except HTTPError as exc:
+        raise RuntimeError(f"请求失败，HTTP {exc.code}: {url}") from exc
+    except URLError as exc:
+        raise RuntimeError(f"请求失败，网络错误: {exc.reason}") from exc
 
 
 def fetch_all_data() -> list:
@@ -65,9 +71,10 @@ def fetch_all_data() -> list:
     seen = set()
     for item in all_items:
         item_id = item.get("id")
-        if item_id in seen:
+        if item_id is not None and item_id in seen:
             continue
-        seen.add(item_id)
+        if item_id is not None:
+            seen.add(item_id)
         deduped.append(item)
 
     return deduped
