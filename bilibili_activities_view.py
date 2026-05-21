@@ -107,11 +107,27 @@ for item in data:
 # 默认按截止时间排序（快结束的在前）
 data.sort(key=lambda x: x.get("etime", 0))
 
-# 标签 HTML
-tags_html = "".join(
-    f'<button class="filter-tag" onclick="toggleTag(this, \'{tag}\')">{tag}</button>'
-    for tag in sorted(all_tags)
-)
+# 统计每个标签出现的次数
+tag_counts = {}
+for item in data:
+    for tag in item.get("hot_labels", []):
+        tag_counts[tag] = tag_counts.get(tag, 0) + 1
+
+# 按标签数量降序排序，数量相同则按字母顺序
+sorted_tags = sorted(tag_counts.items(), key=lambda x: (-x[1], x[0]))
+
+# 生成带计数的标签 HTML
+tags_html_parts = []
+for tag, count in sorted_tags:
+    tags_html_parts.append(
+        f'<button class="filter-tag" onclick="toggleTag(this, \'{tag}\')">'
+        f'{tag} '
+        f'<span style="opacity:0.7; font-size:0.9em;">+{count}</span>'
+        f'</button>'
+    )
+
+tags_html = "".join(tags_html_parts)
+
 
 # =========================
 # 卡片 HTML
