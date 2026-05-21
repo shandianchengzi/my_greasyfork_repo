@@ -22,11 +22,7 @@ def request_json(params: dict) -> dict:
             "Accept-Language": "zh-CN,zh;q=0.9",
             "Cache-Control": "no-cache",
             "Pragma": "no-cache",
-            "User-Agent": (
-                "Mozilla/5.0 (X11; Linux x86_64) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/124.0.0.0 Safari/537.36"
-            ),
+            "User-Agent": "Mozilla/5.0 (compatible; GitHubActionsBot/1.0)",
         },
     )
     try:
@@ -68,13 +64,24 @@ def fetch_all_data() -> list:
 
     # 去重（按 id）
     deduped = []
-    seen = set()
+    seen_ids = set()
+    seen_signatures = set()
     for item in all_items:
         item_id = item.get("id")
-        if item_id is not None and item_id in seen:
-            continue
         if item_id is not None:
-            seen.add(item_id)
+            if item_id in seen_ids:
+                continue
+            seen_ids.add(item_id)
+        else:
+            signature = (
+                item.get("name"),
+                item.get("act_url"),
+                item.get("stime"),
+                item.get("etime"),
+            )
+            if signature in seen_signatures:
+                continue
+            seen_signatures.add(signature)
         deduped.append(item)
 
     return deduped
