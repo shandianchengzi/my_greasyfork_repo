@@ -62,7 +62,7 @@ def fetch_all_data() -> list:
         page += 1
         time.sleep(REQUEST_DELAY_SECONDS)
 
-    # 去重（按 id）
+    # 去重：优先按 id；无 id 时按完整对象签名
     deduped = []
     seen_ids = set()
     seen_signatures = set()
@@ -73,12 +73,7 @@ def fetch_all_data() -> list:
                 continue
             seen_ids.add(item_id)
         else:
-            signature = (
-                item.get("name"),
-                item.get("act_url"),
-                item.get("stime"),
-                item.get("etime"),
-            )
+            signature = json.dumps(item, ensure_ascii=False, sort_keys=True)
             if signature in seen_signatures:
                 continue
             seen_signatures.add(signature)
